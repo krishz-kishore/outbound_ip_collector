@@ -60,7 +60,13 @@ Directory Structure
 
 After setup, the repository (and local machine) will have:
 
-Plain textANTLR4BashCC#CSSCoffeeScriptCMakeDartDjangoDockerEJSErlangGitGoGraphQLGroovyHTMLJavaJavaScriptJSONJSXKotlinLaTeXLessLuaMakefileMarkdownMATLABMarkupObjective-CPerlPHPPowerShell.propertiesProtocol BuffersPythonRRubySass (Sass)Sass (Scss)SchemeSQLShellSwiftSVGTSXTypeScriptWebAssemblyYAMLXML`   .  ├── README.md  ├── outbound_ip_collector.sh         # Main setup script  └── /var/log/outbound_collector/     # (created at runtime)      ├── conn-all-YYYYMMDDHHMM.pcap   # Hourly rotating PCAP files (up to 24)      ├── unique_ips.txt               # Cumulative list of all unique destination IPs      ├── outbound_ip_collector.log    # Log file for captures & extraction runs      └── extract_unique_ips.sh        # Helper script scheduled via at   `
+.  ├── README.md  
+   ├── outbound_ip_collector.sh         # Main setup script  
+   └── /var/log/outbound_collector/     # (created at runtime)      
+       ├── conn-all-YYYYMMDDHHMM.pcap   # Hourly rotating PCAP files (up to 24)      
+       ├── unique_ips.txt               # Cumulative list of all unique destination IPs      
+       ├── outbound_ip_collector.log    # Log file for captures & extraction runs      
+       └── extract_unique_ips.sh        # Helper script scheduled via at   `
 
 *   **outbound\_ip\_collector.sh**The main installer script you run once. Prompts for interface, creates directories, starts tcpdump, drops the helper, and schedules its first run for 12 hours later.
     
