@@ -75,7 +75,7 @@ After setup, the repository (and local machine) will have:
 
 1. **Clone or download this repository** onto your Linux host:
    ```bash
-   git clone https://github.com/yourusername/outbound-ip-collector.git
+   git clone https://github.com/krishz-kishore/outbound-ip-collector.git
    cd outbound-ip-collector
    ```
 
