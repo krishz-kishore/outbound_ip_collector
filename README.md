@@ -87,6 +87,7 @@ After setup, the repository (and local machine) will have:
 3. **Run the setup script**:
    ```bash
    sudo ./outbound_ip_collector.sh
+   sudo chmod +x /usr/local/bin/extract_unique_ips.sh
    ```
 
 4. **Verify initial setup**:
