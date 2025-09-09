@@ -54,41 +54,90 @@ UNIQUE_IP_FILE="$BASE_DIR/unique_ips.txt"
 TEMP_IPS="/tmp/recent_ips_$$.txt"
 LOG_FILE="$BASE_DIR/outbound_ip_collector.log"
 
-{
-  echo "[*] Starting IP extraction at: $(date)"
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
+}
 
-  # Find all PCAPs in BASE_DIR modified in last 12 hours (720 minutes)
-  find "$BASE_DIR" -maxdepth 1 -type f -name 'conn-all-*.pcap' -mmin -720 2>/dev/null | \
+log "[*] Starting IP extraction."
+
+# Check for required commands
+for cmd in find tcpdump awk at sort mv wc; do
+  if ! command -v $cmd &>/dev/null; then
+    log "[ERROR] Required command '$cmd' not found. Exiting."
+    exit 1
+  fi
+done
+
+# Find all PCAPs in BASE_DIR modified in last 12 hours (720 minutes)
+PCAP_FILES=$(find "$BASE_DIR" -maxdepth 1 -type f -name 'conn-all-*.pcap' -mmin -720 2>/dev/null)
+if [[ -z "$PCAP_FILES" ]]; then
+  log "[WARN] No recent PCAP files found. Nothing to process."
+else
+  log "[*] Found PCAP files:"
+  echo "$PCAP_FILES" | while read -r f; do log "    $f"; done
+
+  # Extract destination IPs from all PCAPs
+  > "$TEMP_IPS"
   while read -r PCAP; do
-    sudo tcpdump -nnr "$PCAP" 2>/dev/null
-  done | awk '{
-    for(i=1;i<=NF;i++){
-      if ($i ~ />/) {
-        split($(i+1), b, ".")
-        ip = b[1]"."b[2]"."b[3]"."b[4]
-        if (ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) print ip
-      }
-    }
-  }' > "$TEMP_IPS"
+    log "[*] Processing $PCAP"
+    if ! sudo tcpdump -nnr "$PCAP" 2>/dev/null | \
+      awk '{
+        for(i=1;i<=NF;i++){
+          if ($i ~ />/) {
+            split($(i+1), b, ".")
+            ip = b[1]"."b[2]"."b[3]"."b[4]
+            if (ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) print ip
+          }
+        }
+      }' >> "$TEMP_IPS"; then
+      log "[ERROR] Failed to extract IPs from $PCAP"
+    else
+      log "[✓] Extracted IPs from $PCAP"
+    fi
+  done <<< "$PCAP_FILES"
+
+  COUNT=$(wc -l < "$TEMP_IPS")
+  log "[*] Total extracted IPs: $COUNT"
 
   # Merge with existing UNIQUE_IP_FILE (if present), dedupe, write back
   if [[ -f "$UNIQUE_IP_FILE" ]]; then
-    cat "$TEMP_IPS" "$UNIQUE_IP_FILE" | sort -u > "$BASE_DIR/combined_ips_$$.txt"
-    sudo mv "$BASE_DIR/combined_ips_$$.txt" "$UNIQUE_IP_FILE"
+    log "[*] Merging with existing unique IP file."
+    if cat "$TEMP_IPS" "$UNIQUE_IP_FILE" | sort -u > "$BASE_DIR/combined_ips_$$.txt"; then
+      if sudo mv "$BASE_DIR/combined_ips_$$.txt" "$UNIQUE_IP_FILE"; then
+        log "[✓] Updated $UNIQUE_IP_FILE with merged IPs."
+      else
+        log "[ERROR] Failed to move combined IPs to $UNIQUE_IP_FILE."
+        exit 1
+      fi
+    else
+      log "[ERROR] Failed to create combined IPs file."
+      exit 1
+    fi
   else
-    sudo mv "$TEMP_IPS" "$UNIQUE_IP_FILE"
+    log "[*] No existing unique IP file, creating new one."
+    if sudo mv "$TEMP_IPS" "$UNIQUE_IP_FILE"; then
+      log "[✓] Created new $UNIQUE_IP_FILE."
+    else
+      log "[ERROR] Failed to create $UNIQUE_IP_FILE."
+      exit 1
+    fi
   fi
 
+  # Clean up temp file
   rm -f "$TEMP_IPS"
+fi
 
-  echo "[✓] Unique IP list updated ($(wc -l < "$UNIQUE_IP_FILE") entries)."
+FINAL_COUNT=$(wc -l < "$UNIQUE_IP_FILE" 2>/dev/null || echo 0)
+log "[✓] Unique IP list updated ($FINAL_COUNT entries)."
 
-  # Schedule this script to run in 12 hours
-  echo "$0" | at now + 12 hours 2>>"$LOG_FILE"
+# Schedule this script to run in 12 hours
+if echo "$0" | at now + 12 hours 2>>"$LOG_FILE"; then
+  log "[*] Next extraction scheduled via at (now + 12 hours)."
+else
+  log "[ERROR] Failed to schedule next run with 'at'."
+fi
 
-  echo "[*] Next extraction scheduled via at (now + 12 hours)."
-
-} >> "$LOG_FILE" 2>&1
+log "[*] Script completed."
 EOF
 
 # 5) Make the extraction script executable
