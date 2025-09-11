@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import socket
 
 # Define paths
 BASE_DIR = "/var/log/outbound_collector"
@@ -17,12 +18,60 @@ data = []
 with open(UNIQUE_IP_FILE, "r") as file:
     for line in file:
         parts = line.strip().split()
-        if len(parts) == 4:
-            ip, port, protocol, size = parts
-            data.append((ip, port, protocol, int(size)))
+        if len(parts) >= 4:  # Ensure there are at least 4 parts
+            ip = parts[0]
+            port = parts[1] if parts[1].isdigit() else "unknown"
+            protocol = parts[2] if parts[2].isalpha() else "unknown"
+            size = parts[3] if parts[3].isdigit() else "0"
+            try:
+                data.append((ip, port, protocol, int(size)))
+            except ValueError:
+                print(f"[WARN] Skipping invalid line: {line.strip()}")
+        else:
+            print(f"[WARN] Skipping malformed line: {line.strip()}")
 
 # Create a DataFrame
 df = pd.DataFrame(data, columns=["IP", "Port", "Protocol", "Size"])
+
+# Enhance data with DNS names and protocol from port numbers
+def get_protocol_from_port(port):
+    try:
+        return socket.getservbyport(int(port))
+    except (ValueError, OSError):
+        return port if port.isdigit() else "unknown"
+
+def get_dns_name(ip):
+    try:
+        return socket.gethostbyaddr(ip)[0]
+    except socket.herror:
+        return "unknown"
+
+print("[INFO] Enhancing data with DNS names and protocols...")
+df["DNS"] = df["IP"].apply(get_dns_name)
+df["Protocol"] = df["Port"].apply(get_protocol_from_port)
+
+# Add a column for total hits per IP
+df["Total Hits"] = df.groupby("IP")["IP"].transform("count")
+
+# Save enhanced detailed table to a CSV file
+detailed_table_path = os.path.join(BASE_DIR, "enhanced_detailed_table.csv")
+df.to_csv(detailed_table_path, index=False)
+print(f"[INFO] Enhanced detailed table saved to {detailed_table_path}")
+
+# Group by IP and aggregate data to ensure unique IPs
+print("[INFO] Aggregating data to ensure unique IPs...")
+aggregated_df = df.groupby("IP").agg({
+    "Port": "first",  # Take the first port for each IP
+    "Protocol": "first",  # Take the first protocol for each IP
+    "DNS": "first",  # Take the first DNS name for each IP
+    "Size": "sum",  # Sum the sizes for each IP
+    "Total Hits": "count"  # Count the occurrences of each IP
+}).reset_index()
+
+# Save the aggregated table to a CSV file
+aggregated_table_path = os.path.join(BASE_DIR, "aggregated_detailed_table.csv")
+aggregated_df.to_csv(aggregated_table_path, index=False)
+print(f"[INFO] Aggregated detailed table saved to {aggregated_table_path}")
 
 # Summarize the data
 print("[INFO] Summarizing data...")
