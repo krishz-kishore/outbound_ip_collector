@@ -30,6 +30,9 @@ A simple solution to capture all outbound traffic from a Linux host, store hourl
   • The extraction task re-enqueues itself every 12 hours using the `at` command—no crontab needed.  
 - **Minimal Dependencies**  
   • Only requires: `tcpdump`, `at`, and a standard Linux shell environment.
+- **Enhanced Data Extraction**  
+  • Extracts destination IPs, ports, protocol information, and packet size from PCAP files.  
+  • Provides detailed insights into outbound traffic.
 
 ---
 
@@ -129,8 +132,8 @@ sudo cat /var/log/outbound_collector/unique_ips.txt
 2. **Extract Script**
    - Runs every 12 hours
    - Scans PCAPs modified in last 12 hours
-   - Extracts destination IPs
-   - Updates `unique_ips.txt` with deduplicated IPs
+   - Extracts destination IPs, ports, protocol, and packet size
+   - Updates `unique_ips.txt` with deduplicated IPs and additional details
 
 ---
 
