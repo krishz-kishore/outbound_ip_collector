@@ -76,7 +76,7 @@ else
   log "[*] Found PCAP files:"
   echo "$PCAP_FILES" | while read -r f; do log "    $f"; done
 
-  # Extract destination IPs from all PCAPs
+  # Extract destination IPs, ports, protocol, and packet size from all PCAPs
   > "$TEMP_IPS"
   while read -r PCAP; do
     log "[*] Processing $PCAP"
@@ -86,18 +86,23 @@ else
           if ($i ~ />/) {
             split($(i+1), b, ".")
             ip = b[1]"."b[2]"."b[3]"."b[4]
-            if (ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) print ip
+            port = b[5]
+            protocol = $1
+            size = $(NF-1)
+            if (ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) {
+              print ip, port, protocol, size
+            }
           }
         }
       }' >> "$TEMP_IPS"; then
-      log "[ERROR] Failed to extract IPs from $PCAP"
+      log "[ERROR] Failed to extract data from $PCAP"
     else
-      log "[✓] Extracted IPs from $PCAP"
+      log "[✓] Extracted data from $PCAP"
     fi
   done <<< "$PCAP_FILES"
 
   COUNT=$(wc -l < "$TEMP_IPS")
-  log "[*] Total extracted IPs: $COUNT"
+  log "[*] Total extracted entries: $COUNT"
 
   # Merge with existing UNIQUE_IP_FILE (if present), dedupe, write back
   if [[ -f "$UNIQUE_IP_FILE" ]]; then
