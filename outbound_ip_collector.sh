@@ -153,13 +153,35 @@ EOF
 sudo chmod 750 "$EXTRACT_SCRIPT"
 
 # 6) Install cron job to run the extractor every 12 hours (as root)
-echo "[+] Installing cron job (every 12 hours) for $EXTRACT_SCRIPT..."
-CRON_JOB="0 */12 * * * $EXTRACT_SCRIPT >> $LOG_FILE 2>&1"
-if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then
-  echo "[i] Cron job already exists for $EXTRACT_SCRIPT"
+if command -v systemctl >/dev/null 2>&1; then
+  echo "[+] systemd detected — installing systemd service + timer for tcpdump"
+  # Create an environment file for the service containing IFACE
+  sudo tee /etc/default/outbound_ip_collector > /dev/null <<EOE
+# Outbound IP Collector defaults
+IFACE=$IFACE
+LOG_FILE=$LOG_FILE
+EOE
+  # Copy systemd unit files into place and reload daemon
+  sudo cp "$(pwd)/systemd/outbound-tcpdump.service" /etc/systemd/system/outbound-tcpdump.service
+  sudo cp "$(pwd)/systemd/outbound-tcpdump.timer" /etc/systemd/system/outbound-tcpdump.timer
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now outbound-tcpdump.service
+  sudo systemctl enable --now outbound-tcpdump.timer
+  echo "[✓] outbound-tcpdump.service and timer installed and started via systemd"
+  # Remove a cron job if one existed to avoid duplication
+  if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then
+    sudo crontab -l 2>/dev/null | grep -v -F "$EXTRACT_SCRIPT" | sudo crontab -
+    echo "[i] Removed cron job to avoid duplication (systemd used)."
+  fi
 else
-  (sudo crontab -l 2>/dev/null || true; echo "$CRON_JOB") | sudo crontab -
-  echo "[✓] Cron job installed: $CRON_JOB"
+  echo "[+] Installing cron job (every 12 hours) for $EXTRACT_SCRIPT..."
+  CRON_JOB="0 */12 * * * $EXTRACT_SCRIPT >> $LOG_FILE 2>&1"
+  if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then
+    echo "[i] Cron job already exists for $EXTRACT_SCRIPT"
+  else
+    (sudo crontab -l 2>/dev/null || true; echo "$CRON_JOB") | sudo crontab -
+    echo "[✓] Cron job installed: $CRON_JOB"
+  fi
 fi
 
 echo "[✓] Setup complete."

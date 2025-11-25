@@ -1,0 +1,18 @@
+[Unit]
+Description=Outbound TCPDump capture service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+# Point to system-wide defaults; setup script will create /etc/default/outbound_ip_collector
+EnvironmentFile=/etc/default/outbound_ip_collector
+# Ensure files created with group readable (0644)
+UMask=0022
+# Use bash -lc so we can expand the IFACE and write to log
+ExecStart=/bin/bash -lc 'nohup tcpdump -n -i "$IFACE" -s 0 -G 3600 -W 24 -w "/var/log/outbound_collector/conn-all-%Y%m%d%H%M.pcap" >> /var/log/outbound_collector/outbound_ip_collector.log 2>&1'
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

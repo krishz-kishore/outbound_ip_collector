@@ -23,12 +23,45 @@ else
 fi
 
 # Remove scheduled tasks
-log "[*] Removing scheduled cron job for extract script."
+log "[*] Removing scheduled cron job for extract script (if present)."
 if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then
   sudo crontab -l 2>/dev/null | grep -v -F "$EXTRACT_SCRIPT" | sudo crontab -
   log "[✓] Removed cron job for $EXTRACT_SCRIPT."
 else
   log "[!] No cron job found for $EXTRACT_SCRIPT."
+fi
+
+# Remove systemd service and timer (if present)
+log "[*] Removing systemd service/timer (if present)."
+if command -v systemctl >/dev/null 2>&1; then
+  if sudo systemctl is-active --quiet outbound-tcpdump.service; then
+    sudo systemctl stop outbound-tcpdump.service || true
+    log "[✓] Stopped outbound-tcpdump.service"
+  fi
+  if sudo systemctl is-enabled --quiet outbound-tcpdump.service; then
+    sudo systemctl disable outbound-tcpdump.service || true
+    log "[✓] Disabled outbound-tcpdump.service"
+  fi
+  if sudo systemctl is-active --quiet outbound-tcpdump.timer; then
+    sudo systemctl stop outbound-tcpdump.timer || true
+    log "[✓] Stopped outbound-tcpdump.timer"
+  fi
+  if sudo systemctl is-enabled --quiet outbound-tcpdump.timer; then
+    sudo systemctl disable outbound-tcpdump.timer || true
+    log "[✓] Disabled outbound-tcpdump.timer"
+  fi
+  # Remove unit files and environment file
+  if [[ -f /etc/systemd/system/outbound-tcpdump.service || -f /etc/systemd/system/outbound-tcpdump.timer ]]; then
+    sudo rm -f /etc/systemd/system/outbound-tcpdump.service /etc/systemd/system/outbound-tcpdump.timer
+    sudo systemctl daemon-reload || true
+    log "[✓] Removed systemd unit files and reloaded daemon"
+  fi
+  if [[ -f /etc/default/outbound_ip_collector ]]; then
+    sudo rm -f /etc/default/outbound_ip_collector
+    log "[✓] Removed /etc/default/outbound_ip_collector"
+  fi
+else
+  log "[i] systemctl not present; skipping systemd cleanup"
 fi
 
 # Remove files and directories

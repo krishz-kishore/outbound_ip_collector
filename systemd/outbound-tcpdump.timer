@@ -1,0 +1,10 @@
+[Unit]
+Description=Timer to restart outbound-tcpdump.service every 12 hours
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=12h
+Unit=outbound-tcpdump.service
+
+[Install]
+WantedBy=timers.target
