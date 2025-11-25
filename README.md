@@ -26,10 +26,10 @@ A simple solution to capture all outbound traffic from a Linux host, store hourl
   • All PCAPs, logs, and unique-IP output are stored under `/var/log/outbound_collector/`.  
 - **Automated Unique IP Extraction**  
   • Every 12 hours, parses recent PCAPs to extract destination IPs, merges them into one deduplicated file.  
-- **Self-Scheduling via `at`**  
-  • The extraction task re-enqueues itself every 12 hours using the `at` command—no crontab needed.  
-- **Minimal Dependencies**  
-  • Only requires: `tcpdump`, `at`, and a standard Linux shell environment.
+-- **Self-Scheduling via `cron`**  
+  • The setup script installs a root `cron` job that runs the extraction script every 12 hours.  
+-- **Minimal Dependencies**  
+  • Only requires: `tcpdump` and a standard Linux shell environment.
 - **Enhanced Data Extraction**  
   • Extracts destination IPs, ports, protocol information, and packet size from PCAP files.  
   • Provides detailed insights into outbound traffic.
@@ -41,16 +41,16 @@ A simple solution to capture all outbound traffic from a Linux host, store hourl
 1. **Linux Host** (CentOS, Ubuntu, Debian, etc.)  
 2. **Root (or `sudo`) access**  
 3. **Installed Packages**  
-   - `tcpdump`  
-   - `at` (daemon must be running)  
+  - `tcpdump`  
+  - cron (root crontab will be used to schedule the extractor; cron is usually installed by default on most Linux distributions)
 
    ```bash
    # Debian/Ubuntu
    sudo apt update
-   sudo apt install tcpdump at
+  sudo apt install tcpdump
 
    # RHEL/CentOS
-   sudo yum install tcpdump at
+  sudo yum install tcpdump
    ```
 
 4. **SELinux/AppArmor** (if enabled) should allow `tcpdump` to write to `/var/log/outbound_collector/`.  
@@ -69,7 +69,7 @@ After setup, the repository (and local machine) will have:
     ├── conn-all-YYYYMMDDHHMM.pcap   # Hourly rotating PCAP files (up to 24)
     ├── unique_ips.txt               # Cumulative list of all unique destination IPs
     ├── outbound_ip_collector.log    # Log file for captures & extraction runs
-    └── extract_unique_ips.sh        # Helper script scheduled via at
+    └── extract_unique_ips.sh        # Helper script scheduled via cron
 ```
 
 ---
@@ -101,6 +101,11 @@ After setup, the repository (and local machine) will have:
    - Check that `/var/log/outbound_collector/` exists and is writable:
      ```bash
      ls -ld /var/log/outbound_collector
+
+  - Verify that the extractor cron job is installed (root crontab):
+    ```bash
+    sudo crontab -l | grep -F "/usr/local/bin/extract_unique_ips.sh" || echo "No cron job found (cron not installed or job not added)"
+    ```
      ```
 
 ---
@@ -119,6 +124,16 @@ To view collected unique destination IPs:
 sudo cat /var/log/outbound_collector/unique_ips.txt
 ```
 
+## Uninstall / Remove
+
+If you need to remove the collector and all its artifacts (PCAPs, logs, scripts), run the uninstall script:
+
+```bash
+sudo ./uninstall_outbound_ip_collector.sh
+```
+
+This script will stop tcpdump, remove the root cron job created by the setup script, and delete `/var/log/outbound_collector/` and the extraction script installed at `/usr/local/bin/extract_unique_ips.sh`.
+
 ---
 
 ## How It Works
@@ -127,7 +142,7 @@ sudo cat /var/log/outbound_collector/unique_ips.txt
    - Prompts for interface
    - Creates `/var/log/outbound_collector/`
    - Starts `tcpdump` with `-G 3600 -W 24` (rotates every hour, max 24 files)
-   - Schedules extract script every 12 hours via `at`
+  - Schedules extract script every 12 hours via `cron` (root crontab entry will be created)
 
 2. **Extract Script**
    - Runs every 12 hours

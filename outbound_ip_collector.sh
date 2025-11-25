@@ -44,7 +44,7 @@ sudo tee "$EXTRACT_SCRIPT" > /dev/null << 'EOF'
 #   - Extracts unique destination IPs.
 #   - Merges them into one cumulative file: unique_ips.txt in that same directory.
 #   - Logs activity into outbound_ip_collector.log.
-#   - Re-schedules itself via at for another run in 12 hours.
+#   - Run via cron every 12 hours (cron installed/managed by setup script).
 #
 
 set -euo pipefail
@@ -61,7 +61,7 @@ log() {
 log "[*] Starting IP extraction."
 
 # Check for required commands
-for cmd in find tcpdump awk at sort mv wc; do
+for cmd in find tcpdump awk sort mv wc; do
   if ! command -v $cmd &>/dev/null; then
     log "[ERROR] Required command '$cmd' not found. Exiting."
     exit 1
@@ -135,12 +135,8 @@ fi
 FINAL_COUNT=$(wc -l < "$UNIQUE_IP_FILE" 2>/dev/null || echo 0)
 log "[✓] Unique IP list updated ($FINAL_COUNT entries)."
 
-# Schedule this script to run in 12 hours
-if echo "$0" | at now + 12 hours 2>>"$LOG_FILE"; then
-  log "[*] Next extraction scheduled via at (now + 12 hours)."
-else
-  log "[ERROR] Failed to schedule next run with 'at'."
-fi
+# (No scheduling here — the job is expected to be scheduled by cron.)
+log "[*] Extract script run completed (cron scheduling should be used)."
 
 log "[*] Script completed."
 EOF
@@ -148,12 +144,18 @@ EOF
 # 5) Make the extraction script executable
 sudo chmod 750 "$EXTRACT_SCRIPT"
 
-# 6) Schedule it once (after 12 hours) to start the recurring chain
-echo "[+] Scheduling first IP extraction in 12 hours..."
-echo "$EXTRACT_SCRIPT" | at now + 12 hours 2>>"$LOG_FILE"
+# 6) Install cron job to run the extractor every 12 hours (as root)
+echo "[+] Installing cron job (every 12 hours) for $EXTRACT_SCRIPT..."
+CRON_JOB="0 */12 * * * $EXTRACT_SCRIPT >> $LOG_FILE 2>&1"
+if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then
+  echo "[i] Cron job already exists for $EXTRACT_SCRIPT"
+else
+  (sudo crontab -l 2>/dev/null || true; echo "$CRON_JOB") | sudo crontab -
+  echo "[✓] Cron job installed: $CRON_JOB"
+fi
 
 echo "[✓] Setup complete."
 echo "    • All PCAPs → $BASE_DIR/conn-all-*.pcap"
 echo "    • Unique IP file → $UNIQUE_IP_FILE"
 echo "    • Log file → $LOG_FILE"
-echo "    • Extraction script → $EXTRACT_SCRIPT (runs every 12 hrs via at)"
+echo "    • Extraction script → $EXTRACT_SCRIPT (runs every 12 hrs via cron)"
