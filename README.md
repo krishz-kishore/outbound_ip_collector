@@ -119,6 +119,20 @@ To manually extract IPs:
 sudo /usr/local/bin/extract_unique_ips.sh
 ```
 
+### Visualization
+The visualization script reads the aggregated CSV (output by the extractor) and generates images + a small HTML report.  
+Install dependencies first:
+```bash
+sudo pip3 install -r requirements.txt
+```
+Run the visualization script (default reads `/var/log/outbound_collector/unique_ips.txt` and writes to `/var/log/outbound_collector`):
+```bash
+sudo python3 visualize_suspicious_activity.py --input /var/log/outbound_collector/unique_ips.txt --outdir /var/log/outbound_collector
+```
+Helpful switches:
+ - `--no-dns`: disable reverse DNS lookups (faster)
+ - `--only-ips`: only generate the top IPs chart and exit
+
 To view collected unique destination IPs:
 ```bash
 sudo cat /var/log/outbound_collector/unique_ips.txt
