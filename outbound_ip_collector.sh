@@ -23,10 +23,13 @@ EXTRACT_SCRIPT="/usr/local/bin/extract_unique_ips.sh"
 
 # 3) Start tcpdump in the background, rotating hourly (keep last 24)
 echo "[+] Starting tcpdump (rotating, 24 files) on interface $IFACE..."
-sudo nohup tcpdump -n -i "$IFACE" -s 0 \
-  -G 3600 -W 24 \
-  -w "$PCAP_PATTERN" \
-  > /dev/null 2>>"$LOG_FILE" &
+# Kill any existing tcpdump started by this script. Avoid leaving duplicates.
+if pgrep -f "tcpdump .*conn-all-" >/dev/null 2>&1; then
+  echo "[i] Existing tcpdump capture detected — stopping it first"
+  sudo pkill -f "tcpdump .*conn-all-" || true
+fi
+# Start tcpdump as root and set umask to ensure readable pcaps for analysis (0644)
+sudo bash -lc "umask 0022; nohup tcpdump -n -i \"$IFACE\" -s 0 -G 3600 -W 24 -w \"$PCAP_PATTERN\" > /dev/null 2>>\"$LOG_FILE\" &"
 
 if [[ $? -ne 0 ]]; then
   echo "[!] Failed to start tcpdump. Check $LOG_FILE for details." >&2
@@ -131,6 +134,11 @@ else
   # Clean up temp file
   rm -f "$TEMP_IPS"
 fi
+
+  # Make captured PCAP files readable by analysis tools (if created by root)
+  if [[ -d "$BASE_DIR" ]]; then
+    sudo find "$BASE_DIR" -maxdepth 1 -type f -name 'conn-all-*.pcap' -exec chmod 0644 {} \; 2>/dev/null || true
+  fi
 
 FINAL_COUNT=$(wc -l < "$UNIQUE_IP_FILE" 2>/dev/null || echo 0)
 log "[✓] Unique IP list updated ($FINAL_COUNT entries)."
