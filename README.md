@@ -146,7 +146,7 @@ If you need to remove the collector and all its artifacts (PCAPs, logs, scripts)
 sudo ./uninstall_outbound_ip_collector.sh
 ```
 
-This script will stop tcpdump, remove the root cron job created by the setup script, and delete `/var/log/outbound_collector/` and the extraction script installed at `/usr/local/bin/extract_unique_ips.sh`.
+This script will stop tcpdump, remove the root cron job (if installed) or stop and disable the `systemd` service and timer (if created), and delete `/var/log/outbound_collector/` and the extraction script installed at `/usr/local/bin/extract_unique_ips.sh`.
 
 ---
 
@@ -156,7 +156,7 @@ This script will stop tcpdump, remove the root cron job created by the setup scr
    - Prompts for interface
    - Creates `/var/log/outbound_collector/`
    - Starts `tcpdump` with `-G 3600 -W 24` (rotates every hour, max 24 files)
-  - Schedules extract script every 12 hours via `cron` (root crontab entry will be created)
+  - Installs a systemd service & timer (preferred) to manage tcpdump; if systemd is not detected, a cron job will be created to run the extractor every 12 hours
 
 2. **Extract Script**
    - Runs every 12 hours
