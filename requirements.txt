@@ -1,0 +1,5 @@
+pandas>=1.5
+matplotlib>=3.7
+seaborn>=0.12
+# Optional
+# geoip2  # To enable GeoIP lookups if desired (requires GeoIP2 DB)
