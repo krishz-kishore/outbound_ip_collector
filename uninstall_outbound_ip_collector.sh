@@ -23,12 +23,12 @@ else
 fi
 
 # Remove scheduled tasks
-log "[*] Removing scheduled tasks for extract script."
-if atq | grep -q "$EXTRACT_SCRIPT"; then
-  atq | grep "$EXTRACT_SCRIPT" | awk '{print $1}' | xargs -r at -r
-  log "[✓] Removed scheduled tasks."
+log "[*] Removing scheduled cron job for extract script."
+if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then
+  sudo crontab -l 2>/dev/null | grep -v -F "$EXTRACT_SCRIPT" | sudo crontab -
+  log "[✓] Removed cron job for $EXTRACT_SCRIPT."
 else
-  log "[!] No scheduled tasks found."
+  log "[!] No cron job found for $EXTRACT_SCRIPT."
 fi
 
 # Remove files and directories
