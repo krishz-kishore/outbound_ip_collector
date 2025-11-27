@@ -220,6 +220,18 @@ EOE
   sudo systemctl enable --now outbound-tcpdump.service
   sudo systemctl enable --now outbound-tcpdump.timer
   echo "[✓] outbound-tcpdump.service and timer installed and started via systemd"
+  
+  # Verify environment file was created correctly
+  echo "[*] Verifying /etc/default/outbound_ip_collector..."
+  if [ -f /etc/default/outbound_ip_collector ]; then
+    echo "    IFACE=$(grep ^IFACE= /etc/default/outbound_ip_collector | cut -d= -f2)"
+    echo "    BASE_DIR=$(grep ^BASE_DIR= /etc/default/outbound_ip_collector | cut -d= -f2)"
+    echo "    LOG_FILE=$(grep ^LOG_FILE= /etc/default/outbound_ip_collector | cut -d= -f2)"
+    echo "    TCPDUMP_USER=$(grep ^TCPDUMP_USER= /etc/default/outbound_ip_collector | cut -d= -f2)"
+  else
+    echo "[ERROR] /etc/default/outbound_ip_collector not found!"
+  fi
+  
   # Remove a cron job if one existed to avoid duplication
   if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then
     sudo crontab -l 2>/dev/null | grep -v -F "$EXTRACT_SCRIPT" | sudo crontab -

@@ -12,11 +12,13 @@ Group=root
 # Ensure files created with group readable (0644)
 UMask=0022
 # Ensure base dir exists and has correct perms before starting
-ExecStartPre=/bin/bash -lc 'mkdir -p "$BASE_DIR"; chown root:root "$BASE_DIR"; chmod 0750 "$BASE_DIR"'
-# Use bash -lc so we can expand the IFACE and write to log
-ExecStart=/bin/bash -lc 'nohup tcpdump -n -i "$IFACE" -s 0 -G 3600 -W 24 -w "$BASE_DIR/conn-all-%Y%m%d%H%M.pcap" >> "$LOG_FILE" 2>&1'
+ExecStartPre=/bin/bash -c 'mkdir -p $BASE_DIR && chown root:root $BASE_DIR && chmod 0750 $BASE_DIR'
+# Start tcpdump with proper logging and no background spawning
+ExecStart=/bin/bash -c 'exec tcpdump -n -i $IFACE -s 0 -G 3600 -W 24 -w $BASE_DIR/conn-all-\%Y\%m\%d\%H\%M.pcap 2>> $LOG_FILE'
+# Give tcpdump time to initialize before sending SIGTERM
+TimeoutStopSec=10
 Restart=on-failure
-RestartSec=5s
+RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target
