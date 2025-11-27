@@ -6,12 +6,29 @@ set -euo pipefail
 read -rp "Enter the network interface (e.g., eth0, ens5): " IFACE
 
 # 2) Define and create the base directory
-BASE_DIR="/var/log/outbound_collector"
+BASE_DIR="${BASE_DIR:-/var/log/outbound_collector}"
 if [[ ! -d "$BASE_DIR" ]]; then
   sudo mkdir -p "$BASE_DIR"
   sudo chown root:root "$BASE_DIR"
   sudo chmod 750 "$BASE_DIR"
 fi
+
+# Preflight: ensure tcpdump can be executed with sufficient privileges
+preflight_tcpdump() {
+  if ! command -v tcpdump >/dev/null 2>&1; then
+    echo "[ERROR] tcpdump binary not found; please install it (apt/yum install tcpdump)"
+    exit 1
+  fi
+  # Try listing interfaces via sudo tcpdump -D as permission test
+  if ! sudo tcpdump -D >/dev/null 2>&1; then
+    echo "[WARN] Unable to run 'sudo tcpdump -D' — you may not have permission to run tcpdump or sudo may require a password."
+    echo "  - Try: sudo tcpdump -D"
+    echo "  - Or add capabilities to tcpdump so it can be executed without root: sudo setcap cap_net_raw,cap_net_admin+eip $(which tcpdump)"
+    echo "  - Or ensure you're running the script as root (use: sudo ./outbound_ip_collector.sh)"
+  fi
+}
+
+preflight_tcpdump
 
 # Paths inside the collection directory
 PCAP_PATTERN="$BASE_DIR/conn-all-%Y%m%d%H%M.pcap"
@@ -38,13 +55,30 @@ fi
 
 # 4) Create the extraction script (reads from $BASE_DIR)
 sudo tee "$EXTRACT_SCRIPT" > /dev/null << 'EOF'
+  # Prompt for base directory with default
+  read -rp "Enter the base directory for captures and logs [/var/log/outbound_collector]: " USER_BASE_DIR
+  if [[ -z "$USER_BASE_DIR" ]]; then
+    BASE_DIR="${BASE_DIR:-/var/log/outbound_collector}"
+  else
+    BASE_DIR="$USER_BASE_DIR"
+  fi
 #!/bin/bash
-#
-# /usr/local/bin/extract_unique_ips.sh
-#
-#   - Scans all “conn-all-*.pcap” files in /var/log/outbound_collector
-#     that were modified in the last 12 hours (mmin -720).
-#   - Extracts unique destination IPs.
+  if [[ ! -d "$BASE_DIR" ]]; then
+    echo "[i] Creating base directory: $BASE_DIR"
+    if sudo mkdir -p "$BASE_DIR" 2>/dev/null; then
+      sudo chown root:root "$BASE_DIR"
+      sudo chmod 750 "$BASE_DIR"
+    else
+      echo "[WARN] Failed to create $BASE_DIR (permission denied)."
+      # Try fallback
+      FALLBACK_DIR="/tmp/outbound_collector"
+      echo "[i] Using fallback base directory: $FALLBACK_DIR"
+      BASE_DIR="$FALLBACK_DIR"
+      sudo mkdir -p "$BASE_DIR"
+      sudo chown root:root "$BASE_DIR"
+      sudo chmod 750 "$BASE_DIR"
+    fi
+  fi
 #   - Merges them into one cumulative file: unique_ips.txt in that same directory.
 #   - Logs activity into outbound_ip_collector.log.
 #   - Run via cron every 12 hours (cron installed/managed by setup script).
@@ -52,7 +86,7 @@ sudo tee "$EXTRACT_SCRIPT" > /dev/null << 'EOF'
 
 set -euo pipefail
 
-BASE_DIR="/var/log/outbound_collector"
+  EXTRACT_SCRIPT="/usr/local/bin/extract_unique_ips.sh"
 UNIQUE_IP_FILE="$BASE_DIR/unique_ips.txt"
 TEMP_IPS="/tmp/recent_ips_$$.txt"
 LOG_FILE="$BASE_DIR/outbound_ip_collector.log"
