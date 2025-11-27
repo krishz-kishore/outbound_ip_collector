@@ -22,6 +22,14 @@ else
   log "[!] No tcpdump processes found."
 fi
 
+# Also try to stop systemd service if running
+if command -v systemctl >/dev/null 2>&1; then
+  if sudo systemctl is-active --quiet outbound-tcpdump.service; then
+    sudo systemctl stop outbound-tcpdump.timer outbound-tcpdump.service || true
+    log "[✓] Stopped outbound-tcpdump.service and timer (if present)."
+  fi
+fi
+
 # Remove scheduled tasks
 log "[*] Removing scheduled cron job for extract script (if present)."
 if sudo crontab -l 2>/dev/null | grep -F "$EXTRACT_SCRIPT" >/dev/null 2>&1; then

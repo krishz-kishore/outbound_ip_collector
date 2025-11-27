@@ -207,6 +207,26 @@ EOE
     sudo crontab -l 2>/dev/null | grep -v -F "$EXTRACT_SCRIPT" | sudo crontab -
     echo "[i] Removed cron job to avoid duplication (systemd used)."
   fi
+  # Check service status and fallback if there's a permission-related failure
+  if ! sudo systemctl is-active --quiet outbound-tcpdump.service; then
+    echo "[WARN] systemd service failed to start; checking journal for hints..."
+    sudo journalctl -u outbound-tcpdump.service -n 50 --no-pager | sed -n '1,200p' | sed 's/^/[journal] /'
+    # If the journal shows permission denied, switch to fallback base dir and restart the service
+    if sudo journalctl -u outbound-tcpdump.service -n 50 --no-pager | grep -i "permission denied" >/dev/null 2>&1; then
+      echo "[WARN] Permission denied detected in service logs; switching to fallback base directory /tmp/outbound_collector and restarting service"
+      sudo mkdir -p /tmp/outbound_collector
+      sudo chown root:root /tmp/outbound_collector
+      sudo chmod 0750 /tmp/outbound_collector
+      sudo sed -i -e 's@BASE_DIR=.*@BASE_DIR=/tmp/outbound_collector@' /etc/default/outbound_ip_collector || true
+      sudo systemctl daemon-reload
+      sudo systemctl restart outbound-tcpdump.service
+      if sudo systemctl is-active --quiet outbound-tcpdump.service; then
+        echo "[✓] Service restarted successfully using /tmp/outbound_collector"
+      else
+        echo "[ERROR] Service still failing to start after fallback. Please inspect journalctl and SELinux/AppArmor settings."
+      fi
+    fi
+  fi
 else
   echo "[+] Installing cron job (every 12 hours) for $EXTRACT_SCRIPT..."
   CRON_JOB="0 */12 * * * $EXTRACT_SCRIPT >> $LOG_FILE 2>&1"
