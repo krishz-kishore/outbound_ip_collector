@@ -5,12 +5,14 @@ Wants=network.target
 
 [Service]
 Type=simple
+User=${TCPDUMP_USER:-root}
+Group=${TCPDUMP_USER:-root}
 # Point to system-wide defaults; setup script will create /etc/default/outbound_ip_collector
 EnvironmentFile=/etc/default/outbound_ip_collector
 # Ensure files created with group readable (0644)
 UMask=0022
 # Ensure base dir exists and has correct perms before starting
-ExecStartPre=/bin/bash -lc 'mkdir -p "${BASE_DIR:-/var/log/outbound_collector}"; chown root:root "${BASE_DIR:-/var/log/outbound_collector}"; chmod 0750 "${BASE_DIR:-/var/log/outbound_collector}"'
+ExecStartPre=/bin/bash -lc 'mkdir -p "${BASE_DIR:-/var/log/outbound_collector}"; chown ${TCPDUMP_USER:-root}:${TCPDUMP_USER:-root} "${BASE_DIR:-/var/log/outbound_collector}"; chmod 0750 "${BASE_DIR:-/var/log/outbound_collector}"'
 # Use bash -lc so we can expand the IFACE and write to log
 ExecStart=/bin/bash -lc 'nohup tcpdump -n -i "$IFACE" -s 0 -G 3600 -W 24 -w "${BASE_DIR:-/var/log/outbound_collector}/conn-all-%%Y%%m%%d%%H%%M.pcap" >> "${LOG_FILE:-/var/log/outbound_collector/outbound_ip_collector.log}" 2>&1'
 Restart=on-failure

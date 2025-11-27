@@ -8,6 +8,9 @@ read -rp "Enter the network interface (e.g., eth0, ens5): " IFACE
 # 2) Define and create the base directory
 BASE_DIR="${BASE_DIR:-/var/log/outbound_collector}"
 if [[ ! -d "$BASE_DIR" ]]; then
+  # Create the fallback directory
+  sudo mkdir -p /tmp/outbound_collector
+  sudo chown root:root /tmp/outbound_collector
   sudo mkdir -p "$BASE_DIR"
   sudo chown root:root "$BASE_DIR"
   sudo chmod 750 "$BASE_DIR"
@@ -190,11 +193,25 @@ sudo chmod 750 "$EXTRACT_SCRIPT"
 if command -v systemctl >/dev/null 2>&1; then
   echo "[+] systemd detected — installing systemd service + timer for tcpdump"
   # Create an environment file for the service containing IFACE
-  sudo tee /etc/default/outbound_ip_collector > /dev/null <<EOE
+    # Ask which user to run tcpdump as
+    read -rp "Enter user to run tcpdump as [root]: " TCPDUMP_USER
+    if [[ -z "$TCPDUMP_USER" ]]; then
+      TCPDUMP_USER=root
+    fi
+    sudo tee /etc/default/outbound_ip_collector > /dev/null <<EOE
 # Outbound IP Collector defaults
 IFACE=$IFACE
 LOG_FILE=$LOG_FILE
+    TCPDUMP_USER=$TCPDUMP_USER
 EOE
+  # Optionally give tcpdump binary the capability to capture without root
+  if [[ "$TCPDUMP_USER" != "root" ]]; then
+    read -rp "Grant CAP_NET_RAW, CAP_NET_ADMIN to tcpdump binary so it can run as non-root? [y/N]: " GRANT_CAP
+    if [[ "$GRANT_CAP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      sudo setcap cap_net_raw,cap_net_admin+eip $(which tcpdump) || echo "[WARN] setcap failed; you may need libcap installed and run as root"
+      echo "[i] tcpdump capabilities set; non-root user should be able to capture now"
+    fi
+  fi
   # Copy systemd unit files into place and reload daemon
   sudo cp "$(pwd)/systemd/outbound-tcpdump.service" /etc/systemd/system/outbound-tcpdump.service
   sudo cp "$(pwd)/systemd/outbound-tcpdump.timer" /etc/systemd/system/outbound-tcpdump.timer
@@ -215,7 +232,7 @@ EOE
     if sudo journalctl -u outbound-tcpdump.service -n 50 --no-pager | grep -i "permission denied" >/dev/null 2>&1; then
       echo "[WARN] Permission denied detected in service logs; switching to fallback base directory /tmp/outbound_collector and restarting service"
       sudo mkdir -p /tmp/outbound_collector
-      sudo chown root:root /tmp/outbound_collector
+      sudo chown "$TCPDUMP_USER":"$TCPDUMP_USER" /tmp/outbound_collector
       sudo chmod 0750 /tmp/outbound_collector
       sudo sed -i -e 's@BASE_DIR=.*@BASE_DIR=/tmp/outbound_collector@' /etc/default/outbound_ip_collector || true
       sudo systemctl daemon-reload

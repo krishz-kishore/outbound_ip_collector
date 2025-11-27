@@ -88,5 +88,13 @@ else
   log "[!] $EXTRACT_SCRIPT does not exist."
 fi
 
+# Remove capabilities from tcpdump if we added them earlier
+if command -v setcap >/dev/null 2>&1; then
+  if getcap $(which tcpdump) >/dev/null 2>&1; then
+    sudo setcap -r $(which tcpdump) || true
+    log "[✓] Removed tcpdump capabilities (if previously set)."
+  fi
+fi
+
 # Final message
 log "[✓] Uninstallation complete. Outbound IP Collector has been removed."
