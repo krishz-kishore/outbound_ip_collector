@@ -102,7 +102,14 @@ After setup, the repository (and local machine) will have:
      ```bash
      ls -ld /var/log/outbound_collector
 
-  - Verify that the extractor cron job is installed (root crontab):
+  - Verify that the extractor is scheduled (systemd or cron):
+    ```bash
+    # If systemd is used
+    sudo systemctl status outbound-tcpdump.service
+    sudo systemctl status outbound-tcpdump.timer
+    # If cron is used
+    sudo crontab -l | grep -F "/usr/local/bin/extract_unique_ips.sh" || echo "No cron job found (cron not installed or job not added)"
+    ```
     ```bash
     sudo crontab -l | grep -F "/usr/local/bin/extract_unique_ips.sh" || echo "No cron job found (cron not installed or job not added)"
     ```

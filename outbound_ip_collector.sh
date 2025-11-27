@@ -201,8 +201,9 @@ if command -v systemctl >/dev/null 2>&1; then
     sudo tee /etc/default/outbound_ip_collector > /dev/null <<EOE
 # Outbound IP Collector defaults
 IFACE=$IFACE
+BASE_DIR=$BASE_DIR
 LOG_FILE=$LOG_FILE
-    TCPDUMP_USER=$TCPDUMP_USER
+TCPDUMP_USER=$TCPDUMP_USER
 EOE
   # Optionally give tcpdump binary the capability to capture without root
   if [[ "$TCPDUMP_USER" != "root" ]]; then
